@@ -1,0 +1,47 @@
+exp_dir: exp/libri
+
+enable_amp: True
+do_compile: True
+
+max_steps: 300000 
+val_interval: 10000 
+save_interval: 10000
+
+dataset_args:
+  speaker_num: 1835
+  train_dataset_args:
+    data_paths: ["./data/LibriSpeech/train-other-500/features/feats_24dim_aug_noCMVN.pkl.gz", "./data/LibriSpeech/train-clean-360/features/feats_24dim_aug_noCMVN.pkl.gz", "./data/LibriSpeech/train-clean-100/features/feats_24dim_aug_noCMVN.pkl.gz"]
+  val_dataset_args: 
+    simul_path: ["./data/LibriSpeech/dev-clean/simul_infos/max.pkl.gz", "./data/LibriSpeech/dev-other/simul_infos/max.pkl.gz"]
+    enroll_path: ["./data/LibriSpeech/dev-clean/features/enroll_aug_24dim_noCMVN.pt.gz", "./data/LibriSpeech/dev-other/features/enroll_aug_24dim_noCMVN.pt.gz"]
+    feat_path: ["./data/LibriSpeech/dev-clean/features/aug_24dim_noCMVN.pt.gz", "./data/LibriSpeech/dev-other/features/aug_24dim_noCMVN.pt.gz"]
+  test_dataset_args:
+    simul_path: ["./data/LibriSpeech/test-clean/simul_infos/max.pkl.gz", "./data/LibriSpeech/test-other/simul_infos/max.pkl.gz"]
+    enroll_path: ["./data/LibriSpeech/test-clean/features/enroll_24dim_noCMVN.pt.gz", "./data/LibriSpeech/test-other/features/enroll_24dim_noCMVN.pt.gz"]
+    feat_path: ["./data/LibriSpeech/test-clean/features/noaug_24dim_noCMVN.pt.gz", "./data/LibriSpeech/test-other/features/noaug_24dim_noCMVN.pt.gz"]
+
+dataloader_args:
+  batch_size: 256
+  pin_memory: True
+  num_workers: 4
+  persistent_workers: True
+  prefetch_factor: 2
+
+model: ASPVAD
+model_args:
+  in_dim: 24
+  modulation: "FiLM"  # FiLM, Concat
+  emb_dim: 40
+  emb_num_layers: 4
+  feat_num_layers: 4
+  att_dim: 8
+  AS_chunk_size: 500
+
+optimizer: Adam
+optimizer_args:
+  lr: 0.01
+
+scheduler: StepLR
+scheduler_args:
+  step_size: 1
+  gamma: 0.99

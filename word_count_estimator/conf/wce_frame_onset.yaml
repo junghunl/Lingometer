@@ -1,0 +1,55 @@
+exp_dir: exp/chime
+
+enable_amp: True
+do_compile: True
+
+num-workers: 8
+prefetch-factor: 6
+
+dataset_args:
+  X_train : ./data/librispeech/processed/librispeech_total_train_logmel_features_withframe.pt
+  y_train : ./data/librispeech/meta/librispeech_total_train_utt_meta_withframe.csv
+  X_valid : ./data/librispeech/processed/librispeech_total_valid_logmel_features_withframe.pt
+  y_valid : ./data/librispeech/meta/librispeech_total_valid_utt_meta_withframe.csv
+  X_test : ./data/librispeech/processed/librispeech_total_test_logmel_features_withframe.pt
+  y_test : ./data/librispeech/meta/librispeech_total_test_utt_meta_withframe.csv
+
+model: wce_frame_onset
+model_args:
+  in_feats: 24
+  d_model: 128
+  tcn_blocks: 8 
+  tcn_kernel: 5 
+  tcn_dropout: 0.3
+  use_bilstm: false
+  lstm_hidden: null
+  lstm_layers: null
+  norm_spec: ln
+  checkpoint: "./models/model_best.pt"
+
+optimize: 'AdamW'
+optimizer_args:
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler: cosine_warmup
+scheduler_args:
+  warmup_steps: 10200
+  min_lr: 0.0333
+
+train_args:
+  seed: 42
+  batch_size: 256
+  num_epochs: 100
+  early_stopping_window: 10
+  early_stopping_min: 0
+  early_stopping_min_delta: 0.01
+  target_label: frame_onset
+  monitor_metric: val_err_median
+  loss_function: frame_bce_mix # frame_bce, frame_bce_mix
+  frame_pos_weight: null 
+  frame_loss_weight: 1.0
+  count_loss_weight: 0.1
+  count_loss_type: l2

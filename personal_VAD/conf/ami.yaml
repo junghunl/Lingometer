@@ -1,0 +1,46 @@
+exp_dir: exp/ami
+
+enable_amp: True
+do_compile: True
+
+num_epochs: 302000
+save_epoch_interval: 100
+
+dataset_args:
+  speaker_num: 1835
+  train_dataset_args:
+    conv_path: "./data/ami/train/conv_24dim_aug_noCMVN.pkl.gz"
+    enroll_path: "./data/ami/train/utt_24dim_aug.pkl.gz"
+    fix_conv_len: 1800
+  val_dataset_args: 
+    conv_path: "./data/ami/valid/conv_24dim_aug_noCMVN.pkl.gz"
+    enroll_path: "./data/ami/valid/utt_24dim_aug.pkl.gz"
+  test_dataset_args: 
+    conv_path: "./data/ami/test/conv_24dim_noaug_noCMVN.pkl.gz"
+    enroll_path: "./data/ami/test/utt_24dim_aug.pkl.gz"
+
+dataloader_args:
+  batch_size: 16
+  shuffle: True
+  pin_memory: True
+
+model: ASPVAD
+model_args:
+  in_dim: 24
+  modulation: "FiLM"  # FiLM, Concat
+  AS_chunk_size: 500
+  emb_dim: 40
+  emb_num_layers: 4
+  feat_num_layers: 4
+  att_dim: 8
+  pred_spk: False
+  checkpoint: "./models/ckpt_librispeech_spk1835.pt"
+
+optimizer: Adam
+optimizer_args:
+  lr: 0.001
+
+scheduler: StepLR
+scheduler_args:
+  step_size: 1
+  gamma: 0.999
