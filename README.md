@@ -1,4 +1,4 @@
-# LINGOMETER: ON-DEVICE PERSONAL SPEECHWORD COUNTING SYSTEM [ICASSP 2026]
+# LINGOMETER: ON-DEVICE PERSONAL SPEECH WORD COUNTING SYSTEM [ICASSP 2026]
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/) [![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=flat&logo=PyTorch&logoColor=white)](https://pytorch.org/) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -38,7 +38,7 @@ The Lingometer system follows a hierarchical pipeline as implemented in this rep
 
 ## Prerequisites
 
-Experiments were conducted in a Python 3.11 environment using `torch==2.5.1` and `torchaudio==2.5.1`. The system is expected to be compatible with Python 3.10–3.11. 
+Experiments were conducted in a Python 3.11 environment using `torch==2.5.1` and `torchaudio==2.5.1`. The system is expected to be compatible with Python 3.10–3.11.
 
 * Python 3.10+
 * PyTorch 2.5.1+
