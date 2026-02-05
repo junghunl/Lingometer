@@ -1,0 +1,9 @@
+PVAD_post_args:
+  threshold: 0.5 #0.01
+  median_filter_size: 9
+  ns_min_length: 300 #500
+  s_min_length: 200 #500:
+  threshold: 0.5 #0.01
+  median_filter_size: 9
+  ns_min_length: 300 #500
+  s_min_length: 200 #500
