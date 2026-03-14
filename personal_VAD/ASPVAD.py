@@ -1,7 +1,44 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .FiLM import FiLM
+
+
+
+################## FiLM layers #################
+class FiLMGenerator(nn.Module):
+    def __init__(self, input_dim, embedding_dim):
+        super().__init__()
+        self.input_dim = input_dim
+        self.embedding_dim = embedding_dim
+        self.linear = nn.Linear(embedding_dim, 2 * input_dim)
+
+    def forward(self, embedding):
+        film_parameters = self.linear(embedding).view(embedding.size(0), 2, -1)
+        beta = film_parameters[:, 0]
+        gamma = film_parameters[:, 1]
+        return beta, gamma
+
+
+class FiLM(nn.Module):
+    def __init__(self, input_dim, embedding_dim):
+        super(FiLM, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.input_dim = input_dim
+        self.FiLM_generator = FiLMGenerator(embedding_dim=embedding_dim, input_dim=input_dim)
+
+    def forward(self, x, embedding):
+        beta, gamma = self.FiLM_generator(embedding=embedding)
+        beta = beta.unsqueeze(1)
+        gamma = gamma.unsqueeze(1)
+        return gamma * x + beta
+##############################################
+
+
+
+
+
+
+
 
 """
 B : batch dim
@@ -215,9 +252,10 @@ class FiLM_wrapper(FiLM):
         return out.transpose(1,2)
 
 class AttentiveScore(nn.Module):
-    def __init__(self, feat_dim, emb_dim, modulation='Concat', keep_orig=True, noAS=False):
+    def __init__(self, feat_dim, emb_dim, modulation='Concat', keep_orig=False, chunk_size=None, return_score=True):
         super().__init__()
         assert modulation in ['Concat','FiLM']
+        self.modulation = modulation
         if modulation=='Concat':
             self.modulation = Concat()
             self.first_dim = feat_dim+emb_dim
@@ -225,12 +263,15 @@ class AttentiveScore(nn.Module):
             self.modulation = FiLM_wrapper(input_dim=feat_dim, embedding_dim=emb_dim)
             self.first_dim = feat_dim
         else: raise Exception('not supported modulation')
-        self.keep_orig = keep_orig
-        self.noAS = noAS
+        if keep_orig==True: raise Exception("does not support keep_orig=True anymore.")
+        self.chunk_size = chunk_size
+        self.return_score = return_score
         self.conv1 = ConvNormPReLU(self.first_dim, feat_dim, 1)
         self.conv2 = nn.Conv1d(feat_dim, feat_dim, 1)
-        self.loss_linear = nn.Conv1d(feat_dim, 1, 1)
-        self.loss_sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=-1)
+        if return_score:
+            self.loss_linear = nn.Conv1d(feat_dim, 1, 1)
+            self.loss_sigmoid = nn.Sigmoid()
 
     def forward(self, feat: torch.Tensor, emb: torch.Tensor, lengths=None) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -241,31 +282,52 @@ class AttentiveScore(nn.Module):
             feat_as : (B, feat_dim, T)
             score_normalized : (B, T)
         """
+        B, C, T = feat.shape
         modulated = self.modulation(feat, emb)
-        score = self.conv1(modulated)
-        score = self.conv2(score)
+        modulated_proj = self.conv1(modulated)
+        score = self.conv2(modulated_proj)
+        if lengths is not None:
+            mask = torch.arange(feat.size(2), device=score.device).unsqueeze(0) < lengths.unsqueeze(1)  # (B,T)
+            mask = mask.unsqueeze(1)  # (B,1,T)
+            score = score.masked_fill(~mask, float("-inf"))
+        if self.chunk_size is None:
+            score = self.softmax(score)
+        else:
+            chunk_size = self.chunk_size
+            num_chunks = (T + chunk_size - 1) // chunk_size
+            pad_len = num_chunks * chunk_size - T
+            score_padded = F.pad(score, (0, pad_len), value=float('-inf'))
+            score_chunks = score_padded.view(B, C, num_chunks, chunk_size)
+            score_chunks = self.softmax(score_chunks)
+            score = score_chunks.view(B, C, -1)[..., :T]
+        score = torch.where(torch.isfinite(score), score, torch.zeros_like(score))
+        #feat_as = feat*score if self.keep_orig else modulated*score
+        feat_as = modulated*score if self.modulation=='Concat' else modulated_proj*score
 
-        score_normalized = self.loss_linear(score)
-        score_normalized = self.loss_sigmoid(score_normalized)
-        feat_as = feat*score_normalized if self.keep_orig else modulated*score_normalized
-        score_normalized = score_normalized.squeeze(1)
+        if self.return_score:
+            score_normalized = self.loss_linear(score)
+            score_normalized = self.loss_sigmoid(score_normalized)
+            score_normalized = score_normalized.squeeze(1)
+        else: score_normalized = torch.zeros((B, T), device=score.device, dtype=score.dtype)
 
-        if self.noAS : return modulated, torch.zeros_like(score_normalized)
         return feat_as, score_normalized
 
 
 class ASPVAD(nn.Module):
-    def __init__(self, in_dim=25, emb_dim=80, num_speakers=128, modulation='Concat', pred_spk=True, dropout_p=0, emb_num_layers=5, feat_num_layers=5, att_dim=128, p_hid_dim1=40, p_hid_dim2=20, AS_keep_orig=True, noAS=False):
+    def __init__(self, in_dim=24, num_speakers=128, modulation='Concat',
+                 emb_dim=80, emb_num_layers=5, feat_num_layers=5, att_dim=128, p_hid_dim1=40, p_hid_dim2=20,
+                 with_train_layers=True, dropout_p=0, AS_keep_orig=False, AS_chunk_size=None, pred_spk=True):
         super().__init__()
         self.in_dim = in_dim
         self.emb_dim = emb_dim
+        self.with_train_layers = with_train_layers
         self.num_speakers = num_speakers
-        self.pred_spk = pred_spk
+        self.pred_spk = pred_spk & with_train_layers
         self.embedding_extractor = EmbeddingExtractor(in_dim, emb_dim, dropout_p=dropout_p, num_layers=emb_num_layers, att_dim=att_dim)
         self.feature_tcnn = TCNN(in_dim, emb_dim, num_layers=feat_num_layers)
-        self.attentive_score = AttentiveScore(emb_dim, emb_dim, modulation=modulation, keep_orig=AS_keep_orig, noAS=noAS)
+        self.attentive_score = AttentiveScore(emb_dim, emb_dim, modulation=modulation, keep_orig=AS_keep_orig, chunk_size=AS_chunk_size, return_score=with_train_layers)
         self.p_classifier = PClassifier(emb_dim, dropout_p=dropout_p, hid_dim1=p_hid_dim1, hid_dim2=p_hid_dim2)
-        if pred_spk: self.aam = AAM(emb_dim, num_speakers)
+        if self.pred_spk: self.aam = AAM(emb_dim, num_speakers)
         
 
     def forward(self, enroll_feat, simul_feat, enroll_length=None, simul_length=None, spk_label=None):
@@ -308,3 +370,7 @@ class TotalLoss(nn.Module):
 
         L_total = L_pVAD + L_AS + L_spkid
         return L_total, L_pVAD, L_AS, L_spkid
+
+
+
+

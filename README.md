@@ -36,6 +36,8 @@ The Lingometer system follows a hierarchical pipeline as implemented in this rep
 
 [v1.0.0] (Camera-ready Release) : Finalized code for Personal VAD, Word Count Estimator, and the complete pipeline.
 
+[v1.1.0] (Refactoring Release) : Refactored PVAD data preprocessing (expanded training speakers from 1835 to 2338) with improved performance [Acc, F1: Libri(0.94, 0.91), AMI(0.96, 0.92), CHiME(0.92, 0.78)] & new checkpoints, and fixed minor bugs in the WCE.
+
 ## Prerequisites
 
 Experiments were conducted in a Python 3.11 environment using `torch==2.5.1` and `torchaudio==2.5.1`. The system is expected to be compatible with Python 3.10–3.11.
